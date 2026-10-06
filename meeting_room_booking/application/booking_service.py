@@ -35,8 +35,7 @@ class BookingApplicationService:
         reference = BookingReference.create(command.booking_reference)
         time_range = TimeRange.create(command.start, command.end)
 
-        # 2. Load the Room first — we need it for the BR4 check below,
-        #    and we must confirm it actually exists (BR6 - lookup rule)
+        # 2. Load the Room first — we need it for the BR4 check below,and we must confirm it actually exists (BR6 - lookup rule)
         room = self._room_repo.get_by_id(command.room_id)
         if room is None:
             raise ValueError(f"Room {command.room_id} does not exist")

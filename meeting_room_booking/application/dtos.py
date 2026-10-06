@@ -1,4 +1,4 @@
-#Data Transfer Objects.
+#
 
 
 from dataclasses import dataclass
