@@ -21,3 +21,18 @@ class BookingRepository(ABC):
   def get_by_room(self, room: Room) -> list[Booking]:
     """Retrieve all bookings for a specific room."""
     pass
+  
+class RoomRepository(ABC):
+  """Abstract interface for the Room Aggregate."""
+  
+  @abstractmethod
+  def save(self, room: Room) -> None:
+    """Save a room to the repository."""
+    pass
+  
+  @abstractmethod
+  def get_by_id(self, room_id: int) -> Room | None:
+    """Retrieve a room by its ID."""
+    pass
+  
+  
