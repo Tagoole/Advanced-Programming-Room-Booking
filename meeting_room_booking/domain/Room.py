@@ -4,7 +4,7 @@ from .value_objects.TimeRange import TimeRange
 class Room(AggregateRoot):
 
     def __init__(self, name: str, capacity:int):
-        super().__innit__()
+        super().__init__()
 
         if not name or not name.strip():
             raise ValueError("Room name cannot be empty")
@@ -29,4 +29,15 @@ class Room(AggregateRoot):
     def confirmed_ranges(self) -> tuple[TimeRange, ...]:
         return tuple(self._confirmed_ranges)
 
-    
+    def accept_booking(self, time_range: TimeRange) -> None:
+        for existing in self._confirmed_ranges:
+            if existing.overlaps_with(time_range):
+                raise ValueError(
+                     f"Room '{self._name}' is already booked during "
+                    f"{existing}. Cannot also accept {time_range}."
+                )
+        self._confirmed_ranges.append(time_range)
+
+
+
+
