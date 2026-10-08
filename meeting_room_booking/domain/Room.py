@@ -38,6 +38,11 @@ class Room(AggregateRoot):
                 )
         self._confirmed_ranges.append(time_range)
 
+    def release_booking(self, time_range: TimeRange) -> None:
+        if time_range in self._confirmed_ranges:
+            self._confirmed_ranges.remove(time_range)
 
+    def __str__(self) -> str:
+        return f"Room(name={self._name}, capacity={self._capacity})"
 
 
