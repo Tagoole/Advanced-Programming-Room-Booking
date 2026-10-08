@@ -16,3 +16,17 @@ class Room(AggregateRoot):
         self._capacity = capacity
 
         self._confirmed_ranges: list[TimeRange] = []
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def capacity(self) -> int:
+        return self._capacity
+
+    @property
+    def confirmed_ranges(self) -> tuple[TimeRange, ...]:
+        return tuple(self._confirmed_ranges)
+
+    
