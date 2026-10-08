@@ -72,4 +72,23 @@ class Booking(AggregateRoot):
         )
 
     def cancel(self) -> None:
-        
+        if self._status == BookingStatus.CANCELLED:
+            raise ValueError("Booking is already cancelled."
+                  f"Cannot cancel booking {self._reference}. "
+                  f"Current status is {self._status}"              
+                             )
+        self._status = BookingStatus.CANCELLED
+
+        self._raise_domain_event(
+            BookingCancelled(
+                booking_reference=self._reference,
+                room_id=self._room_id,
+                occured_on=datetime.now()
+            )
+        )
+
+    def __str__(self):
+         return (
+            f"Booking({self._reference}, room={self._room_id}, "
+            f"{self._time_range}, attendees={self._attendees}, status={self._status})"
+        )
