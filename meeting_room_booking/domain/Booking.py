@@ -70,3 +70,6 @@ class Booking(AggregateRoot):
                 occured_on=datetime.now()
             )
         )
+
+    def cancel(self) -> None:
+        
