@@ -32,4 +32,44 @@ class Booking(AggregateRoot):
     @property
     def reference(self) -> BookingReference:
         return self._reference
-    
+
+    @property
+    def room_id(self) -> int:
+        return self._room_id
+
+    @property
+    def requester_id(self) -> str:
+        return self._requester_id   
+
+    @property
+    def time_range(self) -> TimeRange:
+        return self._time_range 
+
+    @property
+    def attendees(self) -> int:
+        return self._attendees
+
+    @property
+    def status(self) -> BookingStatus:
+        return self._status 
+
+    # --- business behaviour ---
+
+    def confirm(self):
+        if self.status != BookingStatus.PENDING:
+            raise ValueError("Only pending bookings can be confirmed."
+                  f"Cannot confirm booking {self._reference}. "
+                  f"Current status is {self._status}"              
+                             )
+        self._status = BookingStatus.CONFIRMED
+
+        self._raise_domain_event(
+            BookingConfirmed(
+                booking_reference=self._reference,
+                room_id=self._room_id,
+                occured_on=datetime.now()
+            )
+        )
+
+    def cancel(self) -> None:
+        
