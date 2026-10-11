@@ -17,11 +17,7 @@ class BookingRepository(ABC):
     """Retrieve a booking by its reference."""
     pass
   
-  @abstractmethod
-  def get_by_room(self, room: Room) -> list[Booking]:
-    """Retrieve all bookings for a specific room."""
-    pass
-  
+   
 class RoomRepository(ABC):
   """Abstract interface for the Room Aggregate."""
   

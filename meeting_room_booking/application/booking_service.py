@@ -1,16 +1,22 @@
-
-
-from datetime import datetime
 from domain.Booking import Booking
+from domain.Room import Room
 from domain.value_objects.BookingReference import BookingReference
 from domain.value_objects.TimeRange import TimeRange
+from domain.value_objects.BookingStatus import BookingStatus
 from domain.services import BookingDomainService
 from domain.events.BookingConfirmed import BookingConfirmed
 from domain.events.BookingCancelled import BookingCancelled
-from application.dtos import ConfirmBookingCommand, CancelBookingCommand
+from application.dtos import (
+    ConfirmBookingCommand,
+    CancelBookingCommand,
+    BookingResult,
+)
 from application.repositories import BookingRepository, RoomRepository
 
+
 class BookingApplicationService:
+    """Runs the two use cases. Loads aggregates, calls them in order,
+    handles the events they raise, then saves. No business rules here."""
 
     def __init__(
         self,
@@ -22,25 +28,18 @@ class BookingApplicationService:
         self._room_repo = room_repo
         self._domain_service = domain_service
 
-    def confirm_booking(self, command: ConfirmBookingCommand) -> list:
-        """
-        Use Case 1: Confirm a booking.
-
-        Flow: BR1 (TimeRange construction) -> BR4 (Domain Service,
-        capacity check) -> BR2 (Booking.confirm(), raises BR5 event)
-        -> handler -> BR3 (Room.accept_booking()) -> save.
-        """
-
-        # 1. Create Value Objects (BR1 enforced the instant these are built)
+    def confirm_booking(self, command: ConfirmBookingCommand) -> BookingResult:
         reference = BookingReference.create(command.booking_reference)
         time_range = TimeRange.create(command.start_time, command.end_time)
 
-        # 2. Load the Room first — we need it for the BR4 check below,and we must confirm it actually exists (BR6 - lookup rule)
+        # The room has to exist before we go any further.
         room = self._room_repo.get_by_id(command.room_id)
         if room is None:
-            raise ValueError(f"Room {command.room_id} does not exist")
+            raise ValueError(
+                f"Cannot confirm booking {reference}: "
+                f"room {command.room_id} does not exist"
+            )
 
-        # 3. Build the Booking Aggregate (still PENDING, not saved yet)
         booking = Booking(
             reference=reference,
             room_id=command.room_id,
@@ -49,59 +48,75 @@ class BookingApplicationService:
             attendees=command.attendees,
         )
 
-        # 4. BR4 — cross-aggregate check via the Domain Service.
-        #    Raises before anything is confirmed or saved if it fails.
+        # Capacity needs both the booking and the room, so it sits in
+        # the domain service rather than on either one.
         self._domain_service.check_room_can_accommodate(booking, room)
 
-        # 5. BR2 — Booking decides for itself whether it can transition
-        #    to CONFIRMED. This also raises the BR5 Domain Event
-        #    internally (see Booking.confirm()).
         booking.confirm()
         events = list(booking.get_domain_events())
 
-        # 6. HANDLER: react to the BookingConfirmed event by asking
-        #    Room (Aggregate B) to accept the new time range. Room
-        #    enforces BR3 here, on its own terms. If it raises, we
-        #    deliberately do NOT catch the exception — it propagates
-        #    up, and neither booking nor room gets saved below.
         for event in events:
             if isinstance(event, BookingConfirmed):
-                room.accept_booking(booking.time_range)
+                self._on_booking_confirmed(booking, room)
 
-        # 7. Only save once every step above succeeded.
+        # Nothing is saved until the handler above has gone through.
         self._booking_repo.save(booking)
         self._room_repo.save(room)
         booking.clear_domain_events()
 
-        return events
+        return self._to_result(booking, room, events)
 
-    def cancel_booking(self, command: CancelBookingCommand) -> list:
-        """
-        Use Case 2: Cancel an existing booking.
-
-        Flow: BR6 (lookup) -> BR2 (Booking.cancel(), raises event)
-        -> handler -> Room.release_booking() -> save.
-        """
-
+    def cancel_booking(self, command: CancelBookingCommand) -> BookingResult:
         reference = BookingReference.create(command.booking_reference)
 
-        # BR6 — lookup rule: must retrieve the existing Booking first
+        # Load both aggregates before changing anything, so we never
+        # cancel a booking and then fail on a missing room.
         booking = self._booking_repo.get_by_reference(reference)
         if booking is None:
-            raise ValueError(f"Booking {reference} not found")
+            raise ValueError(f"Cannot cancel: booking {reference} was not found")
+
+        room = self._room_repo.get_by_id(booking.room_id)
+        if room is None:
+            raise ValueError(
+                f"Cannot cancel booking {reference}: "
+                f"room {booking.room_id} does not exist"
+            )
+
+        # Check this now. After cancel() the status is CANCELLED and we
+        # can no longer tell whether the room ever held this slot.
+        was_confirmed = booking.status == BookingStatus.CONFIRMED
 
         booking.cancel()
         events = list(booking.get_domain_events())
 
-        # Handler: free the room's slot again for someone else
         for event in events:
             if isinstance(event, BookingCancelled):
-                room = self._room_repo.get_by_id(event.room_id)
-                if room is not None:
-                    room.release_booking(booking.time_range)
-                    self._room_repo.save(room)
+                self._on_booking_cancelled(booking, room, was_confirmed)
 
         self._booking_repo.save(booking)
+        self._room_repo.save(room)
         booking.clear_domain_events()
 
-        return events
+        return self._to_result(booking, room, events)
+
+    def _on_booking_confirmed(self, booking: Booking, room: Room) -> None:
+        """Handler for BookingConfirmed. Asks the room to take the slot.
+        The room checks its own overlap rule and may refuse."""
+        room.accept_booking(booking.time_range)
+
+    def _on_booking_cancelled(
+        self, booking: Booking, room: Room, was_confirmed: bool
+    ) -> None:
+        """Handler for BookingCancelled. Gives the slot back, but only if
+        the booking had actually been confirmed into the room."""
+        if was_confirmed:
+            room.release_booking(booking.time_range)
+
+    @staticmethod
+    def _to_result(booking: Booking, room: Room, events: list) -> BookingResult:
+        return BookingResult(
+            booking_reference=str(booking.reference),
+            status=str(booking.status),
+            room_name=room.name,
+            events=tuple(str(e) for e in events),
+        )
