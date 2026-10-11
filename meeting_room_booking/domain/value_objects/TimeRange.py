@@ -31,12 +31,7 @@ class TimeRange:
         return cls(start=start, end=end)
 
     def overlaps_with(self, other: "TimeRange") -> bool:
-        """
-        Returns True if this time range overlaps with another.
-
-        Used by Room (see domain/Room.py) to protect BR3: "two
-        confirmed bookings for the same room must not overlap."
-        """
+        
         return self.start < other.end and other.start < self.end
 
     def __str__(self) -> str:

@@ -19,8 +19,6 @@ class Booking(AggregateRoot):
     ):
         super().__init__()
 
-        # Basic sanity check — not one of BR1-BR6 itself, just a
-        # guard against obviously nonsensical input.
         if attendees <= 0:
             raise ValueError("Attendees must be greater than zero")
 
@@ -57,7 +55,7 @@ class Booking(AggregateRoot):
     def status(self) -> BookingStatus:
         return self._status
 
-    # ---------- business behaviour (BR2 lives here) ----------
+    # State transitions
 
     def confirm(self) -> None:
         if self._status != BookingStatus.PENDING:
