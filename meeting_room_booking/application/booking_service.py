@@ -33,7 +33,7 @@ class BookingApplicationService:
 
         # 1. Create Value Objects (BR1 enforced the instant these are built)
         reference = BookingReference.create(command.booking_reference)
-        time_range = TimeRange.create(command.start, command.end)
+        time_range = TimeRange.create(command.start_time, command.end_time)
 
         # 2. Load the Room first — we need it for the BR4 check below,and we must confirm it actually exists (BR6 - lookup rule)
         room = self._room_repo.get_by_id(command.room_id)
